@@ -40,7 +40,7 @@ fn linux_main() -> wry::Result<()> {
 
   app.connect_activate(|app| {
     let window = gtk4::ApplicationWindow::new(app);
-    window.set_title(Some("Multi WebView (GTK4 / Wayland)"));
+    window.set_title(Some("Multi WebView"));
     window.set_default_size(1200, 800);
 
     // 2×2 grid via nested boxes:

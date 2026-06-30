@@ -78,7 +78,7 @@ fn open_window(app: gtk4::Application) {
   let n = COUNTER.fetch_add(1, Ordering::Relaxed);
 
   let window = gtk4::ApplicationWindow::new(&app);
-  window.set_title(Some(&format!("Window {n} (GTK4 / Wayland)")));
+  window.set_title(Some(&format!("Window {n}")));
   window.set_default_size(800, 600);
 
   let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 0);

@@ -4,7 +4,7 @@
 
 //! Exercises Linux-specific WebView features added in the gtk4-webkit6 backend:
 //!
-//! - `with_hardware_acceleration_policy(Never)` — force software rendering
+//! - `with_hardware_acceleration_policy(Never)` — force software rendering; press **H** to toggle Never/Always
 //! - `with_theme(Dark)` — start in dark mode; press **T** to toggle Dark/Light
 //! - `with_on_web_content_process_terminate_handler` — crash handler; press **C** to trigger
 //! - `with_data_directory(path)` — isolated `NetworkSession` data directory
@@ -17,7 +17,7 @@
 //! [theme]                 started in Dark mode
 //! [data_directory]        requested: /tmp/wry-gtk-features-demo
 //! [data_directory]        accessor  : /tmp/wry-gtk-features-demo  (or None if no page loaded yet)
-//! [keys]                  T = toggle theme | C = crash web process | Q/Esc = quit
+//! [keys]                  T = toggle theme | H = toggle hw-accel (Never/Always) | C = crash web process | Q/Esc = quit
 //! ```
 //!
 //! Run with:
@@ -70,7 +70,7 @@ fn linux_main() -> wry::Result<()> {
 
   app.connect_activate(|app| {
     let window = gtk4::ApplicationWindow::new(app);
-    window.set_title(Some("Linux Features (GTK4 / webkit6)"));
+    window.set_title(Some("Linux Features"));
     window.set_default_size(900, 650);
 
     let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
@@ -131,13 +131,15 @@ fn linux_main() -> wry::Result<()> {
       Some(p) => println!("[data_directory]        accessor  : {}", p.display()),
       None => println!("[data_directory]        accessor  : None (ephemeral session)"),
     }
-    println!("[keys]                  T = toggle theme | C = crash web process | Q/Esc = quit");
+    println!("[keys]                  T = toggle theme | H = toggle hw-accel (Never/Always) | C = crash web process | Q/Esc = quit");
 
     let webview = Rc::new(RefCell::new(Some(webview)));
     let is_dark = Rc::new(Cell::new(true));
+    let hw_accel_always = Rc::new(Cell::new(false)); // false = Never (starting state)
 
     let key_ctrl = gtk4::EventControllerKey::new();
     let webview_clone = webview.clone();
+    let hw_accel_always = hw_accel_always.clone();
     key_ctrl.connect_key_pressed(move |_, key, _, _| {
       match key {
         // T — toggle dark/light by setting a data-theme attribute on the page.
@@ -155,6 +157,38 @@ fn linux_main() -> wry::Result<()> {
               "[theme]                 switched to {} (data-theme={attr})",
               if dark { "Dark" } else { "Light" }
             );
+          }
+          gtk4::glib::Propagation::Stop
+        }
+
+        // H — toggle hardware acceleration policy at runtime via WebKit settings.
+        // Never ↔ Always. We track state locally rather than reading it back from
+        // WebKit because WEBKIT_DISABLE_DMABUF_RENDERER=1 causes WebKit to
+        // internally override the property back to Never on every access.
+        // Note: switching to Always enables DMA-BUF/GPU rendering; on VMs without
+        // EGL/DRM (llvmpipe) the WebView may go blank — switch back to Never.
+        gtk4::gdk::Key::h | gtk4::gdk::Key::H => {
+          let now_always = !hw_accel_always.get();
+          hw_accel_always.set(now_always);
+          let next = if now_always {
+            webkit6::HardwareAccelerationPolicy::Always
+          } else {
+            webkit6::HardwareAccelerationPolicy::Never
+          };
+          if let Some(wv) = webview_clone.borrow().as_ref() {
+            use webkit6::prelude::WebViewExt as WKExt;
+            if let Some(settings) = WKExt::settings(&wv.webview()) {
+              settings.set_hardware_acceleration_policy(next);
+              let label = if now_always {
+                "Always (GPU / DMA-BUF)"
+              } else {
+                "Never (software rendering)"
+              };
+              let _ = wv.evaluate_script(&format!(
+                "document.getElementById('hw-policy').textContent = '{label}'"
+              ));
+              println!("[hardware_acceleration] switched to {next:?}");
+            }
           }
           gtk4::glib::Propagation::Stop
         }
@@ -222,12 +256,17 @@ const HTML: &str = r#"
   <p class="dim">Switches the page between Dark and Light by setting a <code>data-theme</code>
   attribute on the root element. Current: <span id="theme-name">Dark</span>.</p>
 
+  <p><b>H</b> &mdash; Toggle hardware acceleration policy</p>
+  <p class="dim">Toggles Never ↔ Always via <code>webkit6::Settings</code>.
+  Current: <span id="hw-policy">Never (software rendering)</span>.
+  On VMs without GPU/EGL support, switching to Always may blank the WebView.</p>
+
   <p><b>C</b> &mdash; Crash the web process</p>
   <p class="dim">Calls <code>terminate_web_process()</code> on the underlying webkit6 view.
   The <code>with_on_web_content_process_terminate_handler</code> closure fires,
   then the page reloads automatically.</p>
 
-  <p id="status">Rendering: software (HardwareAccelerationPolicy::Never) &nbsp;|&nbsp; Data dir: see terminal</p>
+  <p id="status">Data dir: see terminal</p>
 
   <script>
     // Reflect the data-theme attribute set by Rust evaluate_script calls.

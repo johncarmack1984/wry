@@ -52,7 +52,7 @@ fn linux_main() -> wry::Result<()> {
     use std::cell::RefCell;
 
     let window = gtk4::ApplicationWindow::new(app);
-    window.set_title(Some("Simple (GTK4 / Wayland)"));
+    window.set_title(Some("Simple"));
     window.set_default_size(1280, 800);
 
     let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 0);

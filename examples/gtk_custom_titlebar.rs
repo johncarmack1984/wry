@@ -59,7 +59,7 @@ fn linux_main() -> wry::Result<()> {
 
   app.connect_activate(|app| {
     let window = gtk4::ApplicationWindow::new(app);
-    window.set_title(Some("Custom Titlebar (GTK4 / Wayland)"));
+    window.set_title(Some("Custom Titlebar"));
     window.set_default_size(800, 600);
     window.set_decorated(false);
 

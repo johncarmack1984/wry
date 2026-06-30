@@ -49,7 +49,7 @@ fn linux_main() -> wry::Result<()> {
 
   app.connect_activate(|app| {
     let window = gtk4::ApplicationWindow::new(app);
-    window.set_title(Some("GTK OpenGL with Webview"));
+    window.set_title(Some("OpenGL with WebView"));
     window.set_default_size(800, 600);
 
     let overlay = gtk4::Overlay::new();

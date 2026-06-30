@@ -56,7 +56,7 @@ fn linux_main() -> wry::Result<()> {
 
   app.connect_activate(|app| {
     let window = gtk4::ApplicationWindow::new(app);
-    window.set_title(Some("Cookies (GTK4 / Wayland)"));
+    window.set_title(Some("Cookies"));
     window.set_default_size(800, 600);
 
     let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 0);

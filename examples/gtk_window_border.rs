@@ -117,7 +117,7 @@ fn linux_main() -> wry::Result<()> {
 
   app.connect_activate(|app| {
     let window = gtk4::ApplicationWindow::new(app);
-    window.set_title(Some("Window Border (GTK4)"));
+    window.set_title(Some("Window Border"));
     window.set_default_size(500, 300);
 
     // Transparent surface with square corners so the CSS corner brackets

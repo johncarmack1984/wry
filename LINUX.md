@@ -28,6 +28,8 @@
   - [GLIBC_PRIVATE symbol error](#glibc_private-symbol-error)
   - [NeedDebuggerBreak trap in stderr](#needdebuggerbeak-trap-in-stderr)
   - [DMA-BUF rendering issues](#dma-buf-rendering-issues)
+  - [XReparentWindow regression (X11)](#xreparentwindow-regression-x11)
+  - [DragDropEvent::Enter position on X11](#dragdropevententer-position-on-x11)
 
 ---
 
@@ -78,6 +80,11 @@ cargo run --example reparent
 ```
 
 ### X11 — winit
+
+> **Known issue:** These examples use `RawWindowHandle::Xlib` + `XReparentWindow` to embed
+> the WebView inside a winit window. This path is broken on GTK4 — see
+> [XReparentWindow regression (X11)](#xreparentwindow-regression-x11). Use `build_gtk()`
+> with a GTK4 container instead.
 
 ```bash
 cargo run --example simple
@@ -770,7 +777,8 @@ with certain Mesa/Wayland/EGL driver stacks.
 stack. Headless environments and some driver configurations do not support this.
 
 **Fix (programmatic):** Use `with_hardware_acceleration_policy` from `WebViewBuilderExtUnix`
-to force software rendering for the webview (see also `gtk_linux_features` example):
+to force software rendering for the webview. In `gtk_linux_features`, press **H** to toggle
+between `Never` and `Always` at runtime to observe the effect:
 
 ```rust
 use wry::WebViewBuilderExtUnix;
@@ -786,3 +794,49 @@ let webview = WebViewBuilder::new()
 ```bash
 WEBKIT_DISABLE_DMABUF_RENDERER=1 cargo run --example gtk_simple
 ```
+
+---
+
+### XReparentWindow regression (X11)
+
+**Symptom:**
+
+```
+Gdk-CRITICAL: gdk_surface_get_frame_clock: assertion 'GDK_IS_SURFACE (surface)' failed
+Gtk-CRITICAL: gtk_native_realize: assertion 'clock != NULL' failed
+```
+
+The WebView appears as a 1×1 pixel square; content disappears when the parent window is moved.
+
+**Cause:** GTK4 responds to the `ReparentNotify` event (sent by X11 after `XReparentWindow`)
+by attempting to re-realize the GDK surface. This fails because the frame clock is tied to
+the original top-level and is `NULL` after external reparenting. GTK3 allowed free reparenting
+of its windows; GTK4 does not — this is an intentional design change.
+
+**Affected:** All winit-family examples that use `build()` or `build_as_child()` with a
+`RawWindowHandle::Xlib` handle (`simple`, `multiwebview`, `multiwindow`, `cookies`,
+`custom_protocol`, `streaming`, `transparent`, `window_border`, `custom_titlebar`,
+`permission_handler`, `wgpu`).
+
+**Fix:** Use `build_gtk(container)` where `container` is a GTK4 widget. This places the
+WebView inside a GTK widget tree without any `XReparentWindow` call and works correctly on
+both X11 and Wayland without a feature flag. When using winit, combine it with
+`wry::pump_platform_events()` in the `about_to_wait` handler to drive the GLib event loop.
+
+---
+
+### DragDropEvent::Enter position on X11
+
+**Symptom:** `DragDropEvent::Enter` always delivers position `(0, 0)` regardless of where
+the pointer entered the WebView. Subsequent `DragDropEvent::Over` and `DragDropEvent::Drop`
+events carry correct coordinates.
+
+**Cause:** GTK4's `GtkDropTarget::connect_enter` signal fires before the X11 pointer
+position is fully resolved by GDK. By the time the first `connect_motion` fires, the correct
+position is available.
+
+**Impact:** Low. File paths are delivered correctly. Applications that need the exact entry
+point should use the position from the first `DragDropEvent::Over` event instead.
+
+**Wayland:** This quirk does not occur on Wayland — GDK resolves the pointer position
+before the enter signal fires.
