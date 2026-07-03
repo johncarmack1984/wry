@@ -485,6 +485,23 @@ pub struct WebViewHandle(
   pub(crate) Retained<objc2_web_kit::WKWebView>,
 );
 
+#[cfg(any(
+  target_os = "linux",
+  target_os = "dragonfly",
+  target_os = "freebsd",
+  target_os = "netbsd",
+  target_os = "openbsd",
+))]
+impl WebViewHandle {
+  /// Wraps an existing [`webkit6::WebView`] in an opaque handle.
+  ///
+  /// Useful when answering [`WebViewBuilder::with_new_window_req_handler`]
+  /// with a webview the embedder created itself.
+  pub fn from_webkit6_webview(webview: webkit6::WebView) -> Self {
+    Self(webview)
+  }
+}
+
 /// Additional methods on [`WebViewHandle`] specific to Linux and BSD.
 #[cfg(any(
   target_os = "linux",
